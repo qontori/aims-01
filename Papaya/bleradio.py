@@ -1,16 +1,13 @@
 import time
-import bluetooth
 from struct import pack_into, unpack
+from bluepy.btle import Scanner, DefaultDelegate
 
-_IRQ_SCAN_RESULT = 5
-
-_LEGO_ID_MSB = 0x03
-_LEGO_ID_LSB = 0x97
+# Constants
+_ADV_MAX_SIZE = 31
+_ADV_HEADER_SIZE = 5
 _MANUFACTURER_DATA = 0xFF
-
-_DURATION = 0
-_INTERVAL_US = 30000
-_WINDOW_US = 30000
+_LEGO_ID_LSB = 0x97
+_LEGO_ID_MSB = 0x03
 _RSSI_FILTER_WINDOW_MS = 512
 _OBSERVED_DATA_TIMEOUT_MS = 1000
 _RSSI_MIN = -128
@@ -23,15 +20,6 @@ _ADVERTISING_OBJECT_FLOAT = 0x04
 _ADVERTISING_OBJECT_STRING = 0x05
 _ADVERTISING_OBJECT_BYTES = 0x06
 
-_ADV_MAX_SIZE = 31
-_ADV_HEADER_SIZE = 5
-_ADV_COPY_FMT = "31s"
-
-_LEN = 0
-_DATA = 1
-_TIME = 2
-_RSSI = 3
-
 INT_FORMATS = {
     1: "b",
     2: "h",
@@ -40,55 +28,56 @@ INT_FORMATS = {
 
 observed_data = {}
 
-def observe_irq(event, data):
-    if event != _IRQ_SCAN_RESULT:
-        return
+class ScanDelegate(DefaultDelegate):
+    def __init__(self):
+        super().__init__()
 
-    addr_type, addr, adv_type, rssi, adv_data = data
+    def handleDiscovery(self, dev, isNewDev, isNewData):
+        if isNewDev or isNewData:
+            adv_data = dev.getValueText(0xFF)
 
-    # Analyze only advertisements matching Pybricks scheme.
-    if (
-        len(adv_data) <= _ADV_HEADER_SIZE
-        or adv_data[1] != _MANUFACTURER_DATA
-        or adv_data[2] != _LEGO_ID_LSB
-        or adv_data[3] != _LEGO_ID_MSB
-    ):
-        return
+            if (
+                len(adv_data) <= _ADV_HEADER_SIZE
+                or adv_data[1] != _MANUFACTURER_DATA
+                or adv_data[2] != _LEGO_ID_LSB
+                or adv_data[3] != _LEGO_ID_MSB
+            ):
+                return
 
-    if len(adv_data) - 1 != adv_data[0]:
-        return
+            if len(adv_data) - 1 != adv_data[0]:
+                return
 
-    # Get channel buffer, if allocated.
-    channel = adv_data[4]
-    if channel not in observed_data:
-        return
-    info = observed_data[channel]
+            channel = adv_data[4]
+            if channel not in observed_data:
+                return
+            info = observed_data[channel]
 
-    # Update time interval.
-    diff = int(time.time() * 1000) - info[_TIME]
-    info[_TIME] += diff
-    if diff > _RSSI_FILTER_WINDOW_MS:
-        diff = _RSSI_FILTER_WINDOW_MS
+            # Update time interval
+            current_time = int(time.time() * 1000)
+            diff = current_time - info[2]
+            info[2] += diff
+            if diff > _RSSI_FILTER_WINDOW_MS:
+                diff = _RSSI_FILTER_WINDOW_MS
 
-    # Approximate a slow moving average to make RSSI more stable.
-    info[_RSSI] = (
-        info[_RSSI] * (_RSSI_FILTER_WINDOW_MS - diff) + rssi * diff
-    ) // _RSSI_FILTER_WINDOW_MS
+            # Approximate a slow-moving average to make RSSI more stable
+            info[3] = (
+                info[3] * (_RSSI_FILTER_WINDOW_MS - diff) + dev.rssi * diff
+            ) // _RSSI_FILTER_WINDOW_MS
 
-    # Copy advertising data without allocation.
-    info[_LEN] = len(adv_data) - _ADV_HEADER_SIZE
-    pack_into(_ADV_COPY_FMT, info[_DATA], 0, adv_data)
+            # Copy advertising data without allocation
+            info[0] = len(adv_data) - _ADV_HEADER_SIZE
+            pack_into("31s", info[1], 0, adv_data)
 
-    # Allow handler to run other callback code on successfully
-    # receiving a broadcasted message.
-    return channel
+            # Allow handler to run other callback code on successfully
+            # receiving a broadcasted message.
+            return channel
 
-def get_data_info(info_byte: int):
+def get_data_info(info_byte):
     data_type = info_byte >> 5
     data_length = info_byte & 0x1F
     return data_type, data_length
 
-def unpack_one(data_type: int, data: memoryview):
+def unpack_one(data_type, data):
     if data_type == _ADVERTISING_OBJECT_TRUE:
         return True
     elif data_type == _ADVERTISING_OBJECT_FALSE:
@@ -110,9 +99,8 @@ def unpack_one(data_type: int, data: memoryview):
         return data
     else:
         return None
-        
-def decode(data: bytes):
-    data = memoryview(data)
+
+def decode(data):
     first_type, _ = get_data_info(data[0])
 
     # Case of one value instead of tuple.
@@ -122,7 +110,7 @@ def decode(data: bytes):
             return None
 
         value_type, value_length = get_data_info(data[1])
-        return unpack_one(value_type, data[2 : 2 + value_length])
+        return unpack_one(value_type, data[2:2 + value_length])
 
     # Unpack iteratively.
     unpacked = []
@@ -136,7 +124,7 @@ def decode(data: bytes):
             break
 
         # Unpack the value.
-        data_value = data[index + 1 : index + 1 + data_length]
+        data_value = data[index + 1:index + 1 + data_length]
         unpacked.append(unpack_one(data_type, data_value))
         index += 1 + data_length
 
@@ -176,74 +164,65 @@ def encode_one_object(obj, buffer, offset):
             buffer[offset] = _ADVERTISING_OBJECT_BYTES << 5
             data = obj
         buffer[offset] += len(data)
-        pack_into(str(len(data)) + "s", buffer, offset + 1, data)
+        pack_into(f"{len(data)}s", buffer, offset + 1, data)
         return 1 + len(data)
 
     raise ValueError("Data type not supported")
 
 class BLERadio:
-    def __init__(self, broadcast_channel: int = None, observe_channels=[], ble=None):
+    def __init__(self, broadcast_channel=None, observe_channels=[]):
         for channel in observe_channels:
-            if not isinstance(channel, int) or 0 < channel > 255:
+            if not isinstance(channel, int) or not (0 <= channel <= 255):
                 raise ValueError(
-                    "Observe channel must be list of integers from 0 to 255."
+                    "Observe channel must be a list of integers from 0 to 255."
                 )
         if broadcast_channel is not None and (
-            not isinstance(broadcast_channel, int) or 0 < broadcast_channel > 255
+            not isinstance(broadcast_channel, int) or not (0 <= broadcast_channel <= 255)
         ):
-            raise ValueError("Broadcast channel must be None or integer from 0 to 255.")
+            raise ValueError("Broadcast channel must be None or an integer from 0 to 255.")
 
         global observed_data
         observed_data = {
-            ch: [0, bytearray(_ADV_MAX_SIZE), 0, _RSSI_MIN] for ch in observe_channels
+            ch: [bytearray(_ADV_MAX_SIZE), 0, _RSSI_MIN] for ch in observe_channels
         }
 
         self.broadcast_channel = broadcast_channel
         self.send_buffer = bytearray(_ADV_MAX_SIZE)
 
-        if ble is None:
-            # BLE not given, so initialize our own instance.
-            self.ble = bluetooth.BLE()
-            self.ble.active(True)
-            self.ble.irq(observe_irq)
-            self.ble.gap_scan(_DURATION, _INTERVAL_US, _WINDOW_US)
-        else:
-            # Use externally provided BLE, configured and
-            # controlled by user.
-            self.ble = ble
+        self.scanner = Scanner()
+        self.scanner.withDelegate(ScanDelegate())
 
-    def observe(self, channel: int):
+    def observe(self, channel):
         if channel not in observed_data:
             raise ValueError("Channel not allocated.")
 
         info = observed_data[channel]
 
-        if int(time.time() * 1000) - info[_TIME] > _OBSERVED_DATA_TIMEOUT_MS:
-            info[_RSSI] = _RSSI_MIN
+        if int(time.time() * 1000) - info[2] > _OBSERVED_DATA_TIMEOUT_MS:
+            info[3] = _RSSI_MIN
 
-        if info[_RSSI] == _RSSI_MIN:
+        if info[3] == _RSSI_MIN:
             return None
 
-        data = memoryview(info[_DATA])
-        return decode(data[_ADV_HEADER_SIZE : info[_LEN] + _ADV_HEADER_SIZE])
+        data = memoryview(info[1])
+        return decode(data[_ADV_HEADER_SIZE:info[0] + _ADV_HEADER_SIZE])
 
-    def signal_strength(self, channel: int):
+    def signal_strength(self, channel):
         if channel not in observed_data:
             raise ValueError("Channel not allocated.")
 
         info = observed_data[channel]
 
-        if int(time.time() * 1000) - info[_TIME] > _OBSERVED_DATA_TIMEOUT_MS:
-            info[_RSSI] = _RSSI_MIN
+        if int(time.time() * 1000) - info[2] > _OBSERVED_DATA_TIMEOUT_MS:
+            info[3] = _RSSI_MIN
 
-        return info[_RSSI]
+        return info[3]
 
     def broadcast(self, data):
         if self.broadcast_channel is None:
             raise RuntimeError("Broadcast channel not configured.")
 
         if data is None:
-            self.ble.gap_advertise(None)
             return
 
         send_buffer = self.send_buffer
@@ -263,4 +242,6 @@ class BLERadio:
         send_buffer[3] = _LEGO_ID_MSB
         send_buffer[4] = self.broadcast_channel
 
-        self.ble.gap_advertise(40000, bytes(send_buffer[0:size]))
+        # To broadcast, you would use an advertising library for Python
+        # This is a placeholder; actual broadcasting requires additional implementation.
+        # For `bluepy`, you may need to use `bluepy.btle.Peripheral` to configure advertising.

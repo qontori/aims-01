@@ -7,7 +7,7 @@ color_sensors = [buildhat.ColorSensor("C"), buildhat.ColorSensor("D")]
 
 def SetMotorSpeed(left_speed, right_speed):
     global motors
-    motors[0].start(left_speed)
+    motors[0].start(-left_speed)
     motors[1].start(right_speed)
 
 def CheckColors(color):
@@ -45,3 +45,5 @@ def run_motor_test():
         LineFollower()
         if JunctionCheck():
             CheckImage()
+
+run_motor_test()

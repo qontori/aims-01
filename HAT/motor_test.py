@@ -2,13 +2,12 @@ import buildhat
 
 hat = buildhat.Hat()
 print(hat.get())
-motors = [buildhat.Motor("A"), buildhat.Motor("B")]
+motors = buildhat.MotorPair("A","B")
 color_sensors = [buildhat.ColorSensor("C"), buildhat.ColorSensor("D")]
 
 def SetMotorSpeed(left_speed, right_speed):
     global motors
-    motors[0].start(-left_speed)
-    motors[1].start(right_speed)
+    motors.start(-left_speed, right_speed)
 
 def CheckColors(color):
     return color_sensors[0].get_color() == color and color_sensors[1].get_color() == color
@@ -20,13 +19,14 @@ def JunctionCheck():
     return False
 
 def LineFollower():
-    if CheckColors("white"):
-        SetMotorSpeed(50,50)
+    #print("speed : " + str(motors.get_speed()) + " : " + str(motors.get_speed()))
+    if CheckColors("white") or CheckColors("black"):
+        SetMotorSpeed(5,5)
         return
-    if  color_sensors[0].get_color() == "White":
-        SetMotorSpeed(25,50)
+    if  color_sensors[0].get_color() == "white":
+        SetMotorSpeed(5,2.5)
     else:
-        SetMotorSpeed(50,25)
+        SetMotorSpeed(2.5,5)
 
 def CheckImage():
     return
@@ -40,7 +40,7 @@ def CheckEnd():
 
 
 def run_motor_test():
-    SetMotorSpeed(50,50)
+    SetMotorSpeed(5,5)
     while not CheckEnd():
         LineFollower()
         if JunctionCheck():

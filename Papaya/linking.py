@@ -1,11 +1,11 @@
-import tensorflow as tf
+from tflite_runtime.interpreter import Interpreter
 import cv2
 import numpy as np
 import os
 
 os.chdir(os.path.dirname(__file__))
 # Load the TensorFlow Lite model
-interpreter = tf.lite.Interpreter(model_path="training/model_unquant.tflite")
+interpreter = Interpreter(model_path="training/model_unquant.tflite")
 interpreter.allocate_tensors()
 
 # Get input and output tensors

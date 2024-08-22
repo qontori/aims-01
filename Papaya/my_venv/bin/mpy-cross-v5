@@ -1,8 +1,0 @@
-#!/home/robothink/Desktop/aims-01/Papaya/my_venv/bin/python3
-# -*- coding: utf-8 -*-
-import re
-import sys
-from mpy_cross_v5 import _run
-if __name__ == '__main__':
-    sys.argv[0] = re.sub(r'(-script\.pyw|\.exe)?$', '', sys.argv[0])
-    sys.exit(_run())

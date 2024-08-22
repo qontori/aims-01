@@ -3,7 +3,7 @@ from uselect import poll
 
 def GetInput():
     stdout.flush()
-    print("rdy")
+    stdin.flush()
     return stdin.buffer.read(5)
 
 

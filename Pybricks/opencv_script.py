@@ -11,16 +11,10 @@ class_names = None
 
 def opencv_setup():
     global camera, interpreter, class_names
-    # Load the TensorFlow Lite model
     interpreter = Interpreter(model_path="../training/model_unquant.tflite")
     interpreter.allocate_tensors()
-
-    # Load the labels
     class_names = open("../training/labels.txt", "r").readlines()
-
-    # CAMERA can be 0 or 1 based on default camera of your computer
     camera = cv2.VideoCapture(0)
-
     print("starting camera")
 
 def process_image():
@@ -39,12 +33,8 @@ def process_image():
     index = np.argmax(output_data)
     result = class_names[index]
     confidence_score = output_data[0][index]
-
-    # Print prediction and confidence score
     print("Class:", result, end=" ")
     print("Confidence Score:", str(np.round(confidence_score * 100, 2)) + "%")
-
-    #set the result to the global variable
     if confidence_score > 0.9:
         if '0' in result:
             return "lef\r\n"

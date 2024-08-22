@@ -1,11 +1,6 @@
-import opencv_script
-
 import asyncio
 from contextlib import suppress
 from bleak import BleakScanner, BleakClient
-
-from tflite_runtime.interpreter import Interpreter
-import cv2
 import numpy as np
 import os
 
@@ -15,12 +10,14 @@ current_result = ""
 # it when installing the Pybricks firmware.
 HUB_NAME = "Banana"
 
+ready_event = asyncio.Event()
+
 def handle_disconnect(_):
         print("Hub was disconnected.")
         if not main_task.done():
             main_task.cancel()
-
 async def handle_rx(_, data: bytearray):
+    global ready_event
     print("Get handle_rx")
     print(data)
     if data[0] == 0x01:  # "write stdout" event (0x01)
@@ -54,16 +51,12 @@ async def hub_setup():
         
 async def main():
     main_task = asyncio.current_task()
-    global current_result
-    opencv_script.opencv_setup()
     await hub_setup()
-    while cv2.waitKey(1) != 27:
+    while True:
         try:
-            current_result = opencv_script.process_image()
-            print(current_result)
+            pass
         except Exception as e:
             print(e)
-    opencv_script.opencv_cleaup()
     
 
 # Run the main async program.

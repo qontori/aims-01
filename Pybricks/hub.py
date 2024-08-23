@@ -1,6 +1,6 @@
 from pybricks.hubs import PrimeHub
 from pybricks.parameters import Color, Direction, Port, Stop
-from pybricks.pupdevices import ColorSensor, Motor, UltrasonicSensor
+from pybricks.pupdevices import ColorSensor, Motor, UltrasonicSensor, Light
 from pybricks.tools import multitask, run_task, wait
 from listener import GetInput
 
@@ -36,9 +36,9 @@ def CheckDistance():
     return distance_sensor.distance() <= 200
 
 def CheckImage():
-    print("getting input")
+    prime_hub.light.on(Color(h=120, s=100, v=100))
     value = GetInput()
-    print(f"val {value}")
+    prime_hub.light.on(Color(h=270, s=100, v=100))
     if "l" in value:
         TurnLeft()
     elif "r" in value:
@@ -63,12 +63,12 @@ def CheckEnd():
         return 1
     return 0
 
-print("hub: starting")
 StartMotors()
 while True:
+    prime_hub.light.on(Color(h=0, s=100, v=100))
     LineFollower()
     CheckImage()
-    print('loop end')
     #if JunctionCheck() and CheckDistance():
     if CheckEnd():
         break
+    prime_hub.light.on(Color(h=240, s=100, v=100))

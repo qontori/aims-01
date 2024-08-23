@@ -47,8 +47,10 @@ class cvThread (threading.Thread):
         #print("Confidence Score:", str(np.round(confidence_score * 100, 2)) + "%")
         if confidence_score > 0.9:
             if '0' in result:
+                print("left")
                 return b"lef\r\n"
             elif '1' in result:
+                print("right")
                 return b"rig\r\n"
         return b"12345"
 
@@ -61,6 +63,7 @@ class cvThread (threading.Thread):
         print("exit scope")
 
     def run(self):
+        global current_result
         self.opencv_setup()
         while True:
             current_result = self.process_image()

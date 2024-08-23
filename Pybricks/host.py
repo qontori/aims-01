@@ -10,27 +10,28 @@ import numpy as np
 import os
 
 PYBRICKS_COMMAND_EVENT_CHAR_UUID = "c5f50002-8280-46da-89f4-6d8051e4aeef"
-current_result = ""
 # Replace this with the name of your hub if you changed
 # it when installing the Pybricks firmware.
-HUB_NAME = "Banana"
-
-def handle_disconnect(_):
-        print("Hub was disconnected.")
-        if not main_task.done():
-            main_task.cancel()
+#IMPT: CHANGE NAME OF THE HUB TO THE PYBRICKS
+HUB_NAME = "BananaBrick"
 
 async def handle_rx(_, data: bytearray):
-    print("Get handle_rx")
-    print(data)
+    print(f"handle_rx")
     if data[0] == 0x01:  # "write stdout" event (0x01)
         payload = data[1:]
-        if payload == b"rdy\r\n":
-            print("Ready")
+        print(f"payload: {payload}")
+        if b"rdy" in payload:
+            print("Ready, reading 1 frame")
+            try:
+                print(f"result: {opencv_script.current_result}")
+            except Exception as e:
+                print(e)
+            print(f"sending {opencv_script.current_result}")
             await client.write_gatt_char(
                 PYBRICKS_COMMAND_EVENT_CHAR_UUID,
-                b"\x06" + current_result,  # prepend "write stdin" command (0x06)
+                b"\x06" + opencv_script.current_result,  # prepend "write stdin" command (0x06)
                 response=True)
+            print("sent")
         else:
             print("Received:", payload)
 
@@ -51,19 +52,22 @@ async def hub_setup():
         await client.start_notify(PYBRICKS_COMMAND_EVENT_CHAR_UUID, handle_rx)
         print("subbed to noti")
         # Shorthand for sending some data to the hub.
+        print("press button to start program")
         
 async def main():
     main_task = asyncio.current_task()
     global current_result
-    opencv_script.opencv_setup()
+    print("setting up hub")
     await hub_setup()
-    while cv2.waitKey(1) != 27:
-        try:
-            current_result = opencv_script.process_image()
-            print(current_result)
-        except Exception as e:
-            print(e)
-    opencv_script.opencv_cleaup()
+    #start the cv thread
+    thread = opencv_script.cvThread(1, "Thread 1")
+    thread.start()
+    thread.join()
+    
+    while True:
+        key = cv2.waitKey(50)
+        if key == 27:
+            break
     
 
 # Run the main async program.

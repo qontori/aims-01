@@ -36,7 +36,9 @@ def CheckDistance():
     return distance_sensor.distance() <= 200
 
 def CheckImage():
+    print("getting input")
     value = GetInput()
+    print(f"val {value}")
     if "l" in value:
         TurnLeft()
     elif "r" in value:
@@ -61,10 +63,12 @@ def CheckEnd():
         return 1
     return 0
 
+print("hub: starting")
 StartMotors()
 while True:
     LineFollower()
     CheckImage()
+    print('loop end')
     #if JunctionCheck() and CheckDistance():
     if CheckEnd():
         break

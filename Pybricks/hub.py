@@ -13,7 +13,7 @@ motor = Motor(Port.A, Direction.COUNTERCLOCKWISE)
 motor_2 = Motor(Port.B, Direction.CLOCKWISE)
 
 # Initialize variables.
-data = 1
+data = b"12345"
 JunctionDetected = 0
 
 def JunctionCheck():

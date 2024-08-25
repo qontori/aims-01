@@ -12,7 +12,7 @@ current_result = b"12345"
 #ble protocol uuid for pybricks to write into the stdin stream of the hub
 PYBRICKS_COMMAND_EVENT_CHAR_UUID = "c5f50002-8280-46da-89f4-6d8051e4aeef"
 #IMPT: name must match the pybricks hub name
-HUB_NAME = "BananaBrick"
+HUB_NAME = "Banana"
 main_task = None
 client = None
 start_time = None

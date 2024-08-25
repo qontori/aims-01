@@ -14,7 +14,10 @@ def opencv_setup():
     #load the labels for the model
     class_names = open("../training/labels.txt", "r").readlines()
     #gets the first index camera, probably the webcam
-    camera = cv2.VideoCapture(0)
+    camera = cv2.VideoCapture(0)zed = cv2.resize(image, (224, 224), interpolation=cv2.INTER_AREA)
+    image_array = np.asarray(image_resized, dtype=np.float32).reshape(1, 224, 224, 3)
+    image_normalized = (image_array / 127.5) - 1.0
+    #interpret
     print("starting camera")
 
 def process_image():
@@ -44,11 +47,10 @@ def process_image():
     if confidence_score > 0.9:
         if '0' in result:
             print("left")
-            return b"lef\r\n"
-        elif '1' in result:
-            print("right")
-            return b"rig\r\n"
-    return b"12345"
+            return b"lef\r\n"zed = cv2.resize(image, (224, 224), interpolation=cv2.INTER_AREA)
+    image_array = np.asarray(image_resized, dtype=np.float32).reshape(1, 224, 224, 3)
+    image_normalized = (image_array / 127.5) - 1.0
+    #interpret
 
 def opencv_cleaup():
     global camera
